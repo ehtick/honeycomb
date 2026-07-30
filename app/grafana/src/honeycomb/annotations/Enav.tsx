@@ -73,27 +73,32 @@ interface EnavDpCostmap {
 }
 
 interface EnavData {
-    heightmap_sclk_time: number; // Spacecraft clock time
-    heightmap_grid_x_min: number; // Minimum MAP x coordinate of the grid cells
-    heightmap_grid_y_min: number; // Minimum MAP y coordinate of the grid cells
-    heightmap_grid_res: number; // Resolution of the grid cells
-    heightmap_grid_radius: number; // Radius of the square grid
-    heightmap_grid_n_cells: number; // Number of cells along x/y axis
-    heightmap_cell_z: Float32Array; // cell_z[i * n_cells + j] = cell[i][j].z
-    heightmap_cell_global_pos_error: Float32Array; // cell_global_pos_error[i * n_cells + j] = cell[i][j].global_pos_error
-    heightmap_cell_is_dilated: Uint8Array; // cell_is_dilated[i * n_cells + j] = cell[i][j].is_dilated
-    heightmap_global_pos_error: number;
-    
-    costmap_sclk_time: number; // Spacecraft clock time
-    costmap_grid_x_min: number; // Minimum MAP x coordinate of the grid cells
-    costmap_grid_y_min: number; // Minimum MAP y coordinate of the grid cells
-    costmap_grid_res: number; // Resolution of the grid cells
-    costmap_grid_radius: number; // Radius of the square grid
-    costmap_grid_n_cells: number; // Number of cells along x/y axis
-    costmap_cell_type: Int32Array; // cell_type[i * n_cells + j] = cell[i][j].type
-    costmap_cell_tilt: Float32Array; // cell_tilt[i * n_cells + j] = cell[i][j].tilt
-    costmap_cell_roughness: Float32Array; // cell_roughness[i * n_cells + j] = cell[i][j].roughness
-    costmap_cell_cost_type: Int32Array; // cell_cost_type[i * n_cells + j] = cell[i][j].cost_info.type
+    // Aggregate whole-table bindings
+    heightmap?: EnavDpHeightmap;
+    costmap?: EnavDpCostmap;
+
+    // Individual leaf bindings
+    heightmap_sclk_time?: number; // Spacecraft clock time
+    heightmap_grid_x_min?: number; // Minimum MAP x coordinate of the grid cells
+    heightmap_grid_y_min?: number; // Minimum MAP y coordinate of the grid cells
+    heightmap_grid_res?: number; // Resolution of the grid cells
+    heightmap_grid_radius?: number; // Radius of the square grid
+    heightmap_grid_n_cells?: number; // Number of cells along x/y axis
+    heightmap_cell_z?: Float32Array; // cell_z[i * n_cells + j] = cell[i][j].z
+    heightmap_cell_global_pos_error?: Float32Array; // cell_global_pos_error[i * n_cells + j] = cell[i][j].global_pos_error
+    heightmap_cell_is_dilated?: Uint8Array; // cell_is_dilated[i * n_cells + j] = cell[i][j].is_dilated
+    heightmap_global_pos_error?: number;
+
+    costmap_sclk_time?: number; // Spacecraft clock time
+    costmap_grid_x_min?: number; // Minimum MAP x coordinate of the grid cells
+    costmap_grid_y_min?: number; // Minimum MAP y coordinate of the grid cells
+    costmap_grid_res?: number; // Resolution of the grid cells
+    costmap_grid_radius?: number; // Radius of the square grid
+    costmap_grid_n_cells?: number; // Number of cells along x/y axis
+    costmap_cell_type?: Int32Array; // cell_type[i * n_cells + j] = cell[i][j].type
+    costmap_cell_tilt?: Float32Array; // cell_tilt[i * n_cells + j] = cell[i][j].tilt
+    costmap_cell_roughness?: Float32Array; // cell_roughness[i * n_cells + j] = cell[i][j].roughness
+    costmap_cell_cost_type?: Int32Array; // cell_cost_type[i * n_cells + j] = cell[i][j].cost_info.type
 }
 
 const { TextureStampMixin, GridStampMixin } = Mixins;
@@ -707,52 +712,54 @@ export class Enav extends Group implements Annotation<EnavData, EnavOptions> {
     }
 
     update(data: EnavData) {
-        if (data.heightmap_sclk_time) this.incoming_heightmap.sclk_time = data.heightmap_sclk_time;
-        if (data.heightmap_grid_x_min) this.incoming_heightmap.grid.x_min = data.heightmap_grid_x_min;
-        if (data.heightmap_grid_y_min) this.incoming_heightmap.grid.y_min = data.heightmap_grid_y_min;
-        if (data.heightmap_grid_res) this.incoming_heightmap.grid.res = data.heightmap_grid_res;
-        if (data.heightmap_grid_radius) this.incoming_heightmap.grid.radius = data.heightmap_grid_radius;
-        if (data.heightmap_grid_n_cells) this.incoming_heightmap.grid.n_cells = data.heightmap_grid_n_cells;
-        if (data.heightmap_cell_z) this.incoming_heightmap.cell_z = data.heightmap_cell_z;
-        if (data.heightmap_cell_global_pos_error) this.incoming_heightmap.cell_global_pos_error = data.heightmap_cell_global_pos_error;
-        if (data.heightmap_cell_is_dilated) this.incoming_heightmap.cell_is_dilated = data.heightmap_cell_is_dilated;
-        if (data.heightmap_global_pos_error) this.incoming_heightmap.global_pos_error = data.heightmap_global_pos_error;
+        let heightmapDirty = false;
 
-        if (data.heightmap_sclk_time
-            || data.heightmap_grid_x_min
-            || data.heightmap_grid_y_min
-            || data.heightmap_grid_res
-            || data.heightmap_grid_radius
-            || data.heightmap_grid_n_cells
-            || data.heightmap_cell_z
-            || data.heightmap_cell_global_pos_error
-            || data.heightmap_cell_is_dilated
-            || data.heightmap_global_pos_error) {
-                this.updateHeightmap(this.incoming_heightmap);
+        if (data.heightmap) {
+            // Separate grid to prevent modifying the original grid object.
+            const { grid, ...rest } = data.heightmap;
+            Object.assign(this.incoming_heightmap, rest);
+            Object.assign(this.incoming_heightmap.grid, grid);
+            heightmapDirty = true;
         }
 
-        if (data.costmap_sclk_time) this.incoming_costmap.sclk_time = data.costmap_sclk_time;
-        if (data.costmap_grid_x_min) this.incoming_costmap.grid.x_min = data.costmap_grid_x_min;
-        if (data.costmap_grid_y_min) this.incoming_costmap.grid.y_min = data.costmap_grid_y_min;
-        if (data.costmap_grid_res) this.incoming_costmap.grid.res = data.costmap_grid_res;
-        if (data.costmap_grid_radius) this.incoming_costmap.grid.radius = data.costmap_grid_radius;
-        if (data.costmap_grid_n_cells) this.incoming_costmap.grid.n_cells = data.costmap_grid_n_cells;
-        if (data.costmap_cell_type) this.incoming_costmap.cell_type = data.costmap_cell_type;
-        if (data.costmap_cell_tilt) this.incoming_costmap.cell_tilt = data.costmap_cell_tilt;
-        if (data.costmap_cell_roughness) this.incoming_costmap.cell_roughness = data.costmap_cell_roughness;
-        if (data.costmap_cell_cost_type) this.incoming_costmap.cell_cost_type = data.costmap_cell_cost_type;
+        if (data.heightmap_sclk_time) { this.incoming_heightmap.sclk_time = data.heightmap_sclk_time; heightmapDirty = true; }
+        if (data.heightmap_grid_x_min) { this.incoming_heightmap.grid.x_min = data.heightmap_grid_x_min; heightmapDirty = true; }
+        if (data.heightmap_grid_y_min) { this.incoming_heightmap.grid.y_min = data.heightmap_grid_y_min; heightmapDirty = true; }
+        if (data.heightmap_grid_res) { this.incoming_heightmap.grid.res = data.heightmap_grid_res; heightmapDirty = true; }
+        if (data.heightmap_grid_radius) { this.incoming_heightmap.grid.radius = data.heightmap_grid_radius; heightmapDirty = true; }
+        if (data.heightmap_grid_n_cells) { this.incoming_heightmap.grid.n_cells = data.heightmap_grid_n_cells; heightmapDirty = true; }
+        if (data.heightmap_cell_z) { this.incoming_heightmap.cell_z = data.heightmap_cell_z; heightmapDirty = true; }
+        if (data.heightmap_cell_global_pos_error) { this.incoming_heightmap.cell_global_pos_error = data.heightmap_cell_global_pos_error; heightmapDirty = true; }
+        if (data.heightmap_cell_is_dilated) { this.incoming_heightmap.cell_is_dilated = data.heightmap_cell_is_dilated; heightmapDirty = true; }
+        if (data.heightmap_global_pos_error) { this.incoming_heightmap.global_pos_error = data.heightmap_global_pos_error; heightmapDirty = true; }
 
-        if (data.costmap_sclk_time
-            || data.costmap_grid_x_min
-            || data.costmap_grid_y_min
-            || data.costmap_grid_res
-            || data.costmap_grid_radius
-            || data.costmap_grid_n_cells
-            || data.costmap_cell_type
-            || data.costmap_cell_tilt
-            || data.costmap_cell_roughness
-            || data.costmap_cell_cost_type) {
-                this.costmap.update(this.incoming_costmap);
+        if (heightmapDirty) {
+            this.updateHeightmap(this.incoming_heightmap);
+        }
+
+        let costmapDirty = false;
+
+        if (data.costmap) {
+            // Separate grid to prevent modifying the original grid object.
+            const { grid, ...rest } = data.costmap;
+            Object.assign(this.incoming_costmap, rest);
+            Object.assign(this.incoming_costmap.grid, grid);
+            costmapDirty = true;
+        }
+
+        if (data.costmap_sclk_time) { this.incoming_costmap.sclk_time = data.costmap_sclk_time; costmapDirty = true; }
+        if (data.costmap_grid_x_min) { this.incoming_costmap.grid.x_min = data.costmap_grid_x_min; costmapDirty = true; }
+        if (data.costmap_grid_y_min) { this.incoming_costmap.grid.y_min = data.costmap_grid_y_min; costmapDirty = true; }
+        if (data.costmap_grid_res) { this.incoming_costmap.grid.res = data.costmap_grid_res; costmapDirty = true; }
+        if (data.costmap_grid_radius) { this.incoming_costmap.grid.radius = data.costmap_grid_radius; costmapDirty = true; }
+        if (data.costmap_grid_n_cells) { this.incoming_costmap.grid.n_cells = data.costmap_grid_n_cells; costmapDirty = true; }
+        if (data.costmap_cell_type) { this.incoming_costmap.cell_type = data.costmap_cell_type; costmapDirty = true; }
+        if (data.costmap_cell_tilt) { this.incoming_costmap.cell_tilt = data.costmap_cell_tilt; costmapDirty = true; }
+        if (data.costmap_cell_roughness) { this.incoming_costmap.cell_roughness = data.costmap_cell_roughness; costmapDirty = true; }
+        if (data.costmap_cell_cost_type) { this.incoming_costmap.cell_cost_type = data.costmap_cell_cost_type; costmapDirty = true; }
+
+        if (costmapDirty) {
+            this.costmap.update(this.incoming_costmap);
         }
     }
 
@@ -802,6 +809,14 @@ export const enavRegistration = new AnnotationRegistryItem({
     schema: {
         dataModel: AnnotationSchemaDataModel.structured,
         fields: [
+            {
+                name: 'heightmap',
+                description: 'navlib.EnavHeightmap DPO table'
+            },
+            {
+                name: 'costmap',
+                description: 'navlib.EnavCostmap DPO table'
+            },
             {
                 name: 'heightmap_sclk_time',
                 description: 'Spacecraft clock time'
